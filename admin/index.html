@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermzo admin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hermzo.css">
+<style>
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.tabs button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;min-height:40px}
+.tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stats div{border:1px solid var(--line);border-radius:14px;padding:14px}.stats b{display:block;font-family:'Space Grotesk';font-size:1.6rem}
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.docs img{width:100%;height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions .btn{min-height:40px;padding:8px 14px}
+tr.click{cursor:pointer}tr.click:hover{background:var(--bg)}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap row"><a href="/" class="brand"><span>hermzo</span></a><span class="pill">Admin</span></div></header>
+<main class="wrap" style="padding-top:20px;padding-bottom:60px">
+  <form id="login" class="card" style="max-width:420px">
+    <h2>Sign in</h2>
+    <label>Admin key (HERMZO_ADMIN_KEY on the Hermzo server)<input id="key" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="loginErr" role="alert"></p>
+    <button class="btn wide">Open admin</button>
+  </form>
+
+  <div id="app" hidden>
+    <div class="tabs" role="tablist">
+      <button data-tab="overview" class="on">Overview</button>
+      <button data-tab="drivers">Drivers</button>
+      <button data-tab="deliveries">Deliveries</button>
+      <button id="logout" type="button">Sign out</button>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+
+    <section id="overview" style="padding:0"><div class="stats" id="stats"></div></section>
+
+    <section id="drivers" hidden style="padding:0">
+      <label style="max-width:260px">Show<select id="dFilter"><option value="pending">Waiting for review</option><option value="approved">Approved</option><option value="applying">Still applying</option><option value="rejected">Rejected</option><option value="deactivated">Deactivated</option><option value="">All</option></select></label>
+      <div class="tablebox"><table><thead><tr><th>Name</th><th>City</th><th>Phone</th><th>Status</th><th>Checks</th><th>Jobs</th></tr></thead><tbody id="dRows"></tbody></table></div>
+      <div class="card" id="dDetail" hidden style="margin-top:16px"></div>
+    </section>
+
+    <section id="deliveries" hidden style="padding:0">
+      <label style="max-width:260px">Show<select id="jFilter"><option value="requested,pending_payment,searching,unassigned">Needs a driver</option><option value="assigned,to_pickup,at_pickup,picked_up,to_dropoff">In progress</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option><option value="">All</option></select></label>
+      <div class="tablebox"><table><thead><tr><th>Code</th><th>When</th><th>Route</th><th>Vehicle</th><th>Total</th><th>Driver pay</th><th>Status</th></tr></thead><tbody id="jRows"></tbody></table></div>
+      <div class="card" id="jDetail" hidden style="margin-top:16px"></div>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  var API = (window.HERMZO_API || 'https://api.hermzo.com') + '/hermzo';
+  var $ = function (x) { return document.getElementById(x); };
+  var key = sessionStorage.getItem('hzKey') || '';
+  var money = function (c) { return '$' + ((c || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var fmt = function (iso) { return iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; };
+  var approvedDrivers = [];
+
+  function call(path, body) {
+    return fetch(API + path, { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': key, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._ok = r.ok; j._status = r.status; return j; }); });
+  }
+  function show(tab) {
+    ['overview', 'drivers', 'deliveries'].forEach(function (t) { $(t).hidden = t !== tab; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === tab); });
+    if (tab === 'overview') loadStats(); if (tab === 'drivers') loadDrivers(); if (tab === 'deliveries') loadJobs();
+  }
+  document.querySelector('.tabs').addEventListener('click', function (e) { var t = e.target.getAttribute('data-tab'); if (t) show(t); });
+  $('logout').addEventListener('click', function () { sessionStorage.removeItem('hzKey'); location.reload(); });
+
+  function start() {
+    call('/admin/stats').then(function (j) {
+      if (j._status === 401) { $('login').hidden = false; $('app').hidden = true; $('loginErr').textContent = key ? 'That key didn’t work.' : ''; return; }
+      $('login').hidden = true; $('app').hidden = false; renderStats(j);
+      call('/admin/drivers?status=approved').then(function (d) { approvedDrivers = d.drivers || []; });
+    });
+  }
+  $('login').addEventListener('submit', function (e) { e.preventDefault(); key = $('key').value.trim(); sessionStorage.setItem('hzKey', key); start(); });
+
+  function renderStats(s) {
+    $('stats').innerHTML = [['Jobs this week', s.week_jobs], ['Delivered', s.week_delivered], ['Gross', money(s.week_gross_cents)], ['You kept', money(s.week_margin_cents)], ['Drivers online', s.drivers_online], ['Drivers to review', s.drivers_pending]]
+      .map(function (x) { return '<div><span class="muted">' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>'; }).join('');
+  }
+  function loadStats() { call('/admin/stats').then(renderStats); }
+
+  // ---- drivers
+  $('dFilter').addEventListener('change', loadDrivers);
+  function loadDrivers() {
+    call('/admin/drivers' + ($('dFilter').value ? '?status=' + $('dFilter').value : '')).then(function (j) {
+      $('dRows').innerHTML = (j.drivers || []).map(function (d) {
+        return '<tr class="click" data-id="' + esc(d.user_id) + '"><td>' + esc(d.full_name) + '</td><td>' + esc(d.city) + '</td><td>' + esc(d.phone) + '</td><td><span class="pill">' + esc(d.status) + '</span></td><td>' + esc(d.background_status) + '</td><td>' + esc(d.completed) + '</td></tr>';
+      }).join('') || '<tr><td colspan="6" class="muted">Nobody here.</td></tr>';
+    });
+  }
+  $('dRows').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-id]'); if (tr) openDriver(tr.getAttribute('data-id')); });
+  function img(u, alt) { return u ? '<a href="' + esc(u) + '" target="_blank"><img src="' + esc(u) + '" alt="' + esc(alt) + '"></a>' : ''; }
+  function openDriver(id) {
+    call('/admin/drivers/' + id).then(function (j) {
+      var d = j.driver; if (!d) return;
+      var h = '<h2>' + esc(d.full_name) + ' <span class="pill">' + esc(d.status) + '</span></h2>' +
+        '<p class="muted">' + esc(d.phone) + ' · ' + esc(d.email) + ' · ' + esc(d.city) + ' · reliability ' + esc(d.reliability) + ' · ' + esc(d.completed) + ' jobs · ' + esc(d.late_cancels) + ' late drops</p>' +
+        '<h3>License</h3><p>' + esc(d.license_state) + ' · expires ' + esc(d.license_expires) + '</p><div class="docs">' + img(d.license_url, 'License') + '</div>' +
+        '<h3>Insurance</h3><p>' + esc(d.insurance_carrier) + ' · policy ' + esc(d.insurance_policy) + ' · expires ' + esc(d.insurance_expires) + '</p><div class="docs">' + img(d.insurance_url, 'Insurance card') + '</div>' +
+        '<h3>Long-distance authority</h3>' + (d.usdot_number ? '<p>USDOT ' + esc(d.usdot_number) + (d.mc_number ? ' · MC ' + esc(d.mc_number) : '') + ' · cargo insurance ' + money(d.cargo_insurance_cents) + ' until ' + esc(d.cargo_insurance_expires) + ' · <b>' + (d.authority_verified ? 'VERIFIED' : 'not verified') + '</b> · <a target="_blank" href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=' + encodeURIComponent(d.usdot_number) + '">Check on FMCSA SAFER</a></p><div class="docs">' + img(d.authority_url, 'Authority or cargo insurance') + '</div><div class="actions"><button class="btn small" data-auth="1">Verify authority</button><button class="btn small ghost" data-auth="0">Remove verification</button></div>' : '<p class="muted">None added. Needed only for loads that cross state lines.</p>') +
+        '<p>Contractor agreement: ' + (d.contractor_agreed_at ? fmt(d.contractor_agreed_at) : 'no') + ' · Background consent: ' + (d.background_consent_at ? fmt(d.background_consent_at) : 'no') + ' · Payouts: ' + (d.payouts_enabled ? 'set up' : 'not yet') + '</p>' +
+        (j.vehicles || []).map(function (v) {
+          return '<h3>' + esc([v.year, v.make, v.model].join(' ')) + ' <span class="pill">' + esc(v.type) + '</span> <span class="pill">' + esc(v.status) + '</span></h3><p>' + esc(v.color) + ' · plate ' + esc(v.plate) + ' ' + esc(v.plate_state) + (v.has_liftgate ? ' · liftgate' : '') + (v.cargo_length_ft ? ' · ' + esc(v.cargo_length_ft) + ' ft' : '') + '</p><div class="docs">' + (v.photo_urls || []).map(function (u) { return img(u, 'Vehicle photo'); }).join('') + '</div>' +
+            '<div class="actions"><button class="btn small" data-veh="' + esc(v.id) + '" data-d="approve">Approve vehicle</button><button class="btn small ghost" data-veh="' + esc(v.id) + '" data-d="reject">Reject vehicle</button></div>';
+        }).join('') +
+        '<label style="max-width:260px">Checkr result<select id="bg"><option value="">(no change)</option><option value="pending">Pending</option><option value="clear">Clear</option><option value="consider">Consider</option><option value="failed">Failed</option></select></label>' +
+        '<label>Note to driver (sent if rejected)<input id="reason"></label>' +
+        '<div class="actions"><button class="btn" data-dec="approve">Approve driver</button><button class="btn ghost" data-dec="reject">Reject</button><button class="btn ghost" data-dec="deactivate">Deactivate</button><button class="btn ghost" data-dec="reactivate">Reactivate</button></div>';
+      $('dDetail').innerHTML = h; $('dDetail').hidden = false; $('dDetail').dataset.id = id; $('dDetail').scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+  $('dDetail').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var id = $('dDetail').dataset.id;
+    if (b.dataset.veh) return call('/admin/vehicles/' + b.dataset.veh + '/decision', { decision: b.dataset.d }).then(function () { openDriver(id); });
+    if (b.dataset.auth) return call('/admin/drivers/' + id + '/authority', { verified: b.dataset.auth === '1' }).then(function (j) { $('err').textContent = j._ok ? '' : (j.error || 'Failed'); openDriver(id); });
+    if (b.dataset.dec) {
+      if (b.dataset.dec !== 'approve' && !confirm(b.dataset.dec + ' this driver?')) return;
+      call('/admin/drivers/' + id + '/decision', { decision: b.dataset.dec, reason: $('reason').value, background_status: $('bg').value || undefined }).then(function (j) {
+        $('err').textContent = j._ok ? '' : (j.error || 'Failed'); openDriver(id); loadDrivers();
+      });
+    }
+  });
+
+  // ---- deliveries
+  $('jFilter').addEventListener('change', loadJobs);
+  function loadJobs() {
+    call('/admin/deliveries' + ($('jFilter').value ? '?status=' + $('jFilter').value : '')).then(function (j) {
+      $('jRows').innerHTML = (j.deliveries || []).map(function (d) {
+        return '<tr class="click" data-id="' + esc(d.id) + '"><td>HZ-' + esc(d.code) + '</td><td>' + (d.speed === 'scheduled' ? fmt(d.scheduled_for) : esc(d.speed.toUpperCase())) + '</td><td>' + esc(d.pickup_address) + '<br>→ ' + esc(d.dropoff_address) + '</td><td>' + esc(d.vehicle_type) + (d.long_haul ? ' <span class="pill">LONG ' + Math.round(d.miles) + ' mi</span>' : '') + (d.interstate ? ' <span class="pill">' + esc(d.pickup_state) + '→' + esc(d.dropoff_state) + '</span>' : '') + '</td><td>' + money(d.total_cents) + '</td><td>' + money(d.driver_pay_cents) + '</td><td><span class="pill">' + esc(d.status) + '</span></td></tr>';
+      }).join('') || '<tr><td colspan="7" class="muted">Nothing here.</td></tr>';
+    });
+  }
+  $('jRows').addEventListener('click', function (e) { var tr = e.target.closest('tr[data-id]'); if (tr) openJob(tr.getAttribute('data-id')); });
+  function openJob(id) {
+    call('/admin/deliveries/' + id).then(function (j) {
+      var d = j.delivery; if (!d) return;
+      var opts = approvedDrivers.map(function (x) { return '<option value="' + esc(x.user_id) + '">' + esc(x.full_name) + ' · ' + esc(x.city) + (x.online ? ' · online' : '') + '</option>'; }).join('');
+      $('jDetail').innerHTML = '<h2>HZ-' + esc(d.code) + ' <span class="pill">' + esc(d.status) + '</span></h2>' +
+        '<p><b>' + esc(d.customer_name) + '</b>' + (d.company ? ' · ' + esc(d.company) : '') + ' · ' + esc(d.customer_phone) + ' · ' + esc(d.customer_email) + '</p>' +
+        '<p><b>Pickup:</b> ' + esc(d.pickup_address) + (d.pickup_contact ? ' · ' + esc(d.pickup_contact) : '') + (d.pickup_notes ? '<br><i>' + esc(d.pickup_notes) + '</i>' : '') + '</p>' +
+        '<p><b>Drop-off:</b> ' + esc(d.dropoff_address) + (d.dropoff_contact ? ' · ' + esc(d.dropoff_contact) : '') + (d.dropoff_notes ? '<br><i>' + esc(d.dropoff_notes) + '</i>' : '') + '</p>' +
+        '<p><b>Load:</b> ' + esc(d.item_description) + ' · ' + esc(d.load_size) + (d.pallets ? ' · ' + d.pallets + ' pallets' : '') + (d.weight_lbs ? ' · ' + d.weight_lbs + ' lbs' : '') + ' · ' + esc(d.vehicle_type) + (d.needs_liftgate ? ' (liftgate)' : '') + '</p>' +
+        '<p><b>Price:</b> ' + money(d.total_cents) + ' · driver ' + money(d.driver_pay_cents) + ' · ' + esc(d.miles) + ' mi · ~' + esc(d.est_minutes) + ' min · paid: ' + (d.paid_at ? fmt(d.paid_at) : 'no') + '</p>' +
+        '<div class="docs">' + (d.pickup_urls || []).concat(d.dropoff_urls || []).map(function (u) { return img(u, 'Proof photo'); }).join('') + '</div>' +
+        '<p class="muted">Offers: ' + (j.offers || []).map(function (o) { return esc(o.status) + ' (' + esc(o.distance_mi) + ' mi)'; }).join(', ') + '</p>' +
+        '<div class="actions">' +
+        (['requested', 'pending_payment', 'unassigned'].indexOf(d.status) > -1 ? '<button class="btn" data-act="release">Paid · send to drivers</button>' : '') +
+        (!d.driver_id && d.status !== 'cancelled' && d.status !== 'delivered' ? '<select id="assignTo" style="max-width:280px">' + opts + '</select><button class="btn ghost" data-act="assign">Assign driver</button>' : '') +
+        (d.status !== 'delivered' && d.status !== 'cancelled' ? '<button class="btn ghost" data-act="cancel">Cancel + refund</button>' : '') +
+        '<a class="btn ghost" target="_blank" href="/track/?id=' + esc(d.id) + '&t=' + esc(d.track_token) + '">Tracking page</a></div>';
+      $('jDetail').hidden = false; $('jDetail').dataset.id = id; $('jDetail').scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+  $('jDetail').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]'); if (!b) return;
+    var id = $('jDetail').dataset.id, act = b.dataset.act, body = {};
+    if (act === 'assign') body.driver_id = $('assignTo').value;
+    if (act === 'cancel') { if (!confirm('Cancel this job and refund the customer?')) return; body.refund = true; }
+    call('/admin/deliveries/' + id + '/' + act, body).then(function (j) { $('err').textContent = j._ok ? '' : (j.error || 'Failed'); openJob(id); loadJobs(); });
+  });
+
+  if (key) start(); else { $('login').hidden = false; }
+})();
+</script>
+</body>
+</html>
