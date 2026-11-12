@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermzo — Local and city-to-city delivery for business</title>
+<meta name="description" content="Courier, cargo van, box truck and hot shot delivery across town and city to city within the state. Instant prices, ASAP, same day or scheduled. Pickups in New York, Dallas–Fort Worth, Chicago, Atlanta, Houston and Austin.">
+<link rel="canonical" href="https://hermzo.com/">
+<meta property="og:title" content="Hermzo — delivery when you need it">
+<meta property="og:description" content="Instant prices for courier, cargo van, box truck and hot shot delivery. ASAP, same day or scheduled.">
+<meta property="og:url" content="https://hermzo.com/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hermzo.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"Hermzo","url":"https://hermzo.com","description":"On-demand and scheduled delivery: courier, cargo van, box truck and hot shot.","parentOrganization":{"@type":"Organization","name":"Lemont Holdings LLC"},"areaServed":["New York, NY","Dallas–Fort Worth, TX","Chicago, IL","Atlanta, GA","Houston, TX","Austin, TX"]}</script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap row">
+    <a href="/" class="brand" aria-label="Hermzo home">
+      <svg width="34" height="34" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="24" fill="#0F1B3D"/><rect x="43" y="24" width="13" height="52" rx="3" fill="#fff"/><rect x="71" y="24" width="13" height="52" rx="3" fill="#fff"/><rect x="43" y="43.5" width="41" height="13" fill="#fff"/><g stroke="#F97316" stroke-width="6" stroke-linecap="round"><line x1="21" y1="34" x2="35" y2="34"/><line x1="16" y1="50" x2="35" y2="50"/><line x1="23" y1="66" x2="35" y2="66"/></g></svg>
+      <span>hermzo</span>
+    </a>
+    <nav class="nav">
+      <a href="#how">How it works</a>
+      <a href="#vehicles">Vehicles</a>
+      <a href="/drive/">Drive with us</a>
+      <a href="#book" class="btn small">Get a price</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Across town · City to city · Anywhere in the state</p>
+      <h1>Delivery for business, <span class="accent">right now</span> or right on schedule.</h1>
+      <p class="lead">Get an instant price, book in a minute, and watch your driver live. Parts, supplies, pallets, furniture and job-site materials, across town or anywhere in the state.</p>
+      <ul class="ticks">
+        <li>ASAP pickup, usually within 1–3 hours</li>
+        <li>City to city with one dedicated driver, no warehouse stops</li>
+        <li>Photo proof at pickup and drop-off</li>
+        <li>Vetted drivers with their own insured vehicles</li>
+      </ul>
+      <p class="cities" id="cityLine">Pickups in New York, Dallas–Fort Worth, Chicago, Atlanta, Houston and Austin.</p>
+    </div>
+
+    <form class="card quote" id="book" novalidate>
+      <h2>Get a price</h2>
+      <div id="step1">
+        <label>Pickup address<input id="pickup" autocomplete="off" placeholder="Street, city, ZIP" required></label>
+        <label>Drop-off address<input id="dropoff" autocomplete="off" placeholder="Street, city, ZIP" required></label>
+
+        <fieldset>
+          <legend>What are we moving?</legend>
+          <div class="choices four" id="sizes">
+            <button type="button" data-size="small" class="choice"><b>Small</b><span>Boxes, parts, documents</span></button>
+            <button type="button" data-size="medium" class="choice"><b>Medium</b><span>Big boxes, an appliance</span></button>
+            <button type="button" data-size="long" class="choice"><b>Long</b><span>Lumber, pipe, rebar</span></button>
+            <button type="button" data-size="large" class="choice"><b>Large</b><span>Pallets, furniture, big orders</span></button>
+          </div>
+        </fieldset>
+        <div class="two">
+          <label>Pallets <input id="pallets" type="number" min="0" max="26" value="0" inputmode="numeric"></label>
+          <label>Total weight (lbs, optional)<input id="weight" type="number" min="0" max="20000" inputmode="numeric" placeholder="e.g. 400"></label>
+        </div>
+
+        <fieldset>
+          <legend>When?</legend>
+          <div class="choices three" id="speeds">
+            <button type="button" data-speed="asap" class="choice on"><b>ASAP</b><span>Driver in 1–3 hrs</span></button>
+            <button type="button" data-speed="same_day" class="choice"><b>Same day</b><span>By end of day</span></button>
+            <button type="button" data-speed="scheduled" class="choice"><b>Schedule</b><span>Pick a time</span></button>
+          </div>
+        </fieldset>
+        <label id="whenWrap" hidden>Pickup date and time<input id="when" type="datetime-local"></label>
+
+        <div class="two">
+          <label>Helpers (extra hands)
+            <select id="helpers"><option value="0">None, driver only</option><option value="1">1 helper</option><option value="2">2 helpers</option></select></label>
+          <label>Flights of stairs
+            <select id="stairs"><option value="0">None / elevator</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4+</option></select></label>
+        </div>
+        <p class="err" id="err1" role="alert"></p>
+        <button type="submit" class="btn wide" id="quoteBtn">See my price</button>
+      </div>
+
+      <div id="step2" hidden>
+        <div class="price">
+          <div><span class="muted" id="vehLabel"></span><strong id="total"></strong></div>
+          <button type="button" class="link" id="editBtn">Edit</button>
+        </div>
+        <div class="choices three" id="speedPrices"></div>
+        <ul class="lines" id="lines"></ul>
+        <p class="longnote" id="longNote" hidden></p>
+
+        <label>What are we picking up?<textarea id="items" rows="2" placeholder="e.g. 6 boxes of tile, about 300 lbs" required></textarea></label>
+        <div class="two">
+          <label>Your name<input id="name" autocomplete="name" required></label>
+          <label>Mobile number<input id="phone" type="tel" autocomplete="tel" placeholder="(512) 555-0123" required></label>
+        </div>
+        <div class="two">
+          <label>Email (for your receipt)<input id="email" type="email" autocomplete="email"></label>
+          <label>Company (optional)<input id="company" autocomplete="organization"></label>
+        </div>
+        <details>
+          <summary>Pickup and drop-off contacts and notes</summary>
+          <label>Pickup contact (name and phone)<input id="pcontact"></label>
+          <label>Pickup notes<input id="pnotes" placeholder="Dock 4, ask for Mike, gate code…"></label>
+          <label>Drop-off contact (name and phone)<input id="dcontact"></label>
+          <label>Drop-off notes<input id="dnotes" placeholder="Leave at front desk, suite 210…"></label>
+        </details>
+        <label class="agree"><input type="checkbox" id="agree"> <span>I agree to the <a href="/terms/" target="_blank">Terms</a> and <a href="/privacy/" target="_blank">Privacy Policy</a>.</span></label>
+        <input type="text" id="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <p class="err" id="err2" role="alert"></p>
+        <button type="button" class="btn wide" id="bookBtn">Book delivery</button>
+        <p class="fine">You pay by card on the next step. Free cancellation until a driver is assigned.</p>
+      </div>
+
+      <div id="done" hidden>
+        <h3>You're booked 🎉</h3>
+        <p id="doneText">We got your request and will text you shortly to confirm.</p>
+        <a class="btn wide" id="trackLink" href="#">Track your delivery</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="band" id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <div class="grid3">
+      <div><span class="num">1</span><h3>Get an instant price</h3><p>Enter pickup, drop-off and what you're moving. We pick the right vehicle and show the price up front.</p></div>
+      <div><span class="num">2</span><h3>A nearby driver accepts</h3><p>Your job goes to the closest available driver with the right vehicle. You get a text with their name and a live tracking link.</p></div>
+      <div><span class="num">3</span><h3>Photo proof, done</h3><p>Your driver photographs the load at pickup and drop-off and notes who received it. You see everything on the tracking page.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="vehicles">
+  <h2>Vehicles and starting prices</h2>
+  <p class="muted">Local prices include the first 10 miles. Same day adds 25%, ASAP adds 50%. Scheduled is the lowest price.</p>
+  <div class="grid4">
+    <div class="veh"><h3>Car or SUV</h3><p class="from">from <b>$35</b></p><p>Documents, parts, small boxes. Up to about 300 lbs.</p></div>
+    <div class="veh"><h3>Cargo van</h3><p class="from">from <b>$75</b></p><p>Boxes, appliances, store pickups, 1–2 pallets.</p></div>
+    <div class="veh"><h3>Pickup + trailer</h3><p class="from">from <b>$95</b></p><p>Lumber, pipe, rebar and long job-site materials.</p></div>
+    <div class="veh"><h3>Box truck + liftgate</h3><p class="from">from <b>$150</b></p><p>Pallets, furniture, restaurant and retail restocks.</p></div>
+  </div>
+  <h3 style="margin-top:28px">City to city (same state)</h3>
+  <p class="muted">One driver takes your load straight there. Per mile, all in: car $1.75 · cargo van $2.25 · pickup + trailer $2.55 · box truck $3.40, plus a loading fee. Expedited (driver leaves right away) adds 20%. A driver covers about 500 miles a day.</p>
+</section>
+
+<section class="band dark">
+  <div class="wrap split">
+    <div>
+      <h2>Need regular deliveries?</h2>
+      <p>Supply houses, contractors, restaurants and stores use Hermzo for daily runs and recurring routes. Email us for business pricing.</p>
+    </div>
+    <a class="btn" href="mailto:support@hermzo.com?subject=Business%20delivery%20pricing">Email us</a>
+  </div>
+</section>
+
+<section class="wrap faq">
+  <h2>Questions</h2>
+  <details><summary>Do you deliver city to city?</summary><p>Yes, anywhere in the same state. Pick up in any city we serve and deliver anywhere in that state, like Houston to Dallas, El Paso or Amarillo, or Chicago to Springfield. One driver takes your load straight there, about 500 miles a day. We don't deliver across state lines.</p></details>
+  <details><summary>How fast is ASAP?</summary><p>Most ASAP pickups happen within 1–3 hours, depending on distance and how many drivers are nearby. You'll see your driver's name and live location as soon as one accepts.</p></details>
+  <details><summary>Can I cancel?</summary><p>Yes. Cancel free from your tracking page any time before a driver is assigned, and you're refunded in full. After that, text us and we'll help.</p></details>
+  <details><summary>What can't you carry?</summary><p>No hazardous materials, firearms, live animals, cash or medical specimens. If you're not sure, text us before you book.</p></details>
+  <details><summary>Are your drivers insured?</summary><p>Every driver carries their own commercial auto insurance and passes a background and driving record check before their first job.</p></details>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap row">
+    <p>© <span id="yr"></span> Hermzo · operated by Lemont Holdings LLC</p>
+    <p><a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href="/drive/">Drive with Hermzo</a></p>
+  </div>
+</footer>
+
+<script src="/hermzo.js"></script>
+</body>
+</html>
