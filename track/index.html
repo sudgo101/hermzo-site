@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track your delivery · Hermzo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/hermzo.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<header class="top"><div class="wrap row">
+  <a href="/" class="brand" aria-label="Hermzo home"><svg width="34" height="34" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="24" fill="#0F1B3D"/><rect x="43" y="24" width="13" height="52" rx="3" fill="#fff"/><rect x="71" y="24" width="13" height="52" rx="3" fill="#fff"/><rect x="43" y="43.5" width="41" height="13" fill="#fff"/><g stroke="#F97316" stroke-width="6" stroke-linecap="round"><line x1="21" y1="34" x2="35" y2="34"/><line x1="16" y1="50" x2="35" y2="50"/><line x1="23" y1="66" x2="35" y2="66"/></g></svg><span>hermzo</span></a>
+</div></header>
+<main class="wrap" style="max-width:720px;padding-top:28px;padding-bottom:48px">
+  <p id="paidNote" class="status" hidden>Payment received. Thank you!</p>
+  <h1 id="title" style="font-size:2rem">Your delivery</h1>
+  <p><span class="status" id="status">Loading…</span></p>
+  <p class="err" id="err" role="alert"></p>
+  <div class="card" id="driverCard" hidden>
+    <h3 id="driverName"></h3>
+    <p class="muted" id="driverVeh" style="margin:0"></p>
+  </div>
+  <div id="map" hidden></div>
+  <div class="card">
+    <p style="margin:0"><b>Pickup</b><br><span id="from"></span></p>
+    <p style="margin:12px 0 0"><b>Drop-off</b><br><span id="to"></span></p>
+    <p class="muted" style="margin:12px 0 0" id="meta"></p>
+  </div>
+  <div id="proof" hidden>
+    <h2 style="margin-top:28px">Photo proof</h2>
+    <p class="muted" id="recv"></p>
+    <div id="photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+  </div>
+  <h2 style="margin-top:28px">Timeline</h2>
+  <ul class="timeline" id="timeline"></ul>
+  <button class="btn ghost" id="cancelBtn" hidden>Cancel delivery</button>
+  <p class="fine">Questions? Email <a href="mailto:support@hermzo.com">support@hermzo.com</a> with your code.</p>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  var API = (window.HERMZO_API || 'https://api.hermzo.com') + '/hermzo';
+  var q = new URLSearchParams(location.search), id = q.get('id'), t = q.get('t');
+  var $ = function (x) { return document.getElementById(x); };
+  if (q.get('paid')) $('paidNote').hidden = false;
+  var map, markers = {}, fitted = false, shownPhotos = 0;
+  function fmt(iso) { return new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function marker(key, lat, lng, color, label) {
+    if (lat == null) return;
+    var icon = L.divIcon({ className: '', html: '<div style="width:18px;height:18px;border-radius:50%;background:' + color + ';border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', iconSize: [18, 18] });
+    if (markers[key]) markers[key].setLatLng([lat, lng]); else markers[key] = L.marker([lat, lng], { icon: icon, title: label }).addTo(map).bindTooltip(label);
+  }
+  function load() {
+    if (!id || !t) { $('status').textContent = 'Link not valid'; return; }
+    fetch(API + '/track/' + encodeURIComponent(id) + '?t=' + encodeURIComponent(t)).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); }).then(function (d) {
+      if (!d._ok) { $('status').textContent = 'Not found'; $('err').textContent = d.error || ''; return; }
+      $('title').textContent = 'Delivery HZ-' + d.code;
+      $('status').textContent = d.status_text;
+      $('from').textContent = d.pickup.address; $('to').textContent = d.dropoff.address;
+      $('meta').textContent = d.vehicle_label + ' · ' + (d.speed === 'scheduled' && d.scheduled_for ? 'Scheduled for ' + fmt(d.scheduled_for) : d.speed === 'asap' ? (d.long_haul ? 'Expedited' : 'ASAP') : 'Same day') + (d.long_haul ? ' · ' + Math.round(d.miles) + ' mi · about ' + d.transit_days + ' day' + (d.transit_days > 1 ? 's' : '') + ' on the road' : '') + ' · $' + (d.total_cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (d.driver) {
+        $('driverCard').hidden = false;
+        $('driverName').textContent = 'Your driver: ' + d.driver.first_name;
+        $('driverVeh').textContent = [d.driver.vehicle, d.driver.plate_last4 ? 'plate ending ' + d.driver.plate_last4 : ''].filter(Boolean).join(' · ');
+      }
+      if (window.L && d.pickup.lat != null) {
+        $('map').hidden = false;
+        if (!map) { map = L.map('map', { scrollWheelZoom: false }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map); }
+        marker('p', d.pickup.lat, d.pickup.lng, '#0F1B3D', 'Pickup');
+        marker('d', d.dropoff.lat, d.dropoff.lng, '#15803D', 'Drop-off');
+        if (d.driver && d.driver.location) marker('v', d.driver.location.lat, d.driver.location.lng, '#F97316', 'Driver');
+        if (!fitted) { map.fitBounds(Object.keys(markers).map(function (k) { return markers[k].getLatLng(); }), { padding: [40, 40] }); fitted = true; }
+      }
+      var photos = (d.proof.pickup || []).concat(d.proof.dropoff || []).filter(Boolean);
+      if (photos.length && photos.length !== shownPhotos) {
+        shownPhotos = photos.length; $('proof').hidden = false; $('photos').innerHTML = '';
+        photos.forEach(function (u, i) { var a = document.createElement('a'); a.href = u; a.target = '_blank'; var im = document.createElement('img'); im.src = u; im.alt = i < (d.proof.pickup || []).length ? 'Pickup photo' : 'Drop-off photo'; im.style.cssText = 'width:100%;height:150px;object-fit:cover;border-radius:12px'; a.appendChild(im); $('photos').appendChild(a); });
+      }
+      $('recv').textContent = d.received_by ? 'Received by ' + d.received_by + (d.delivered_at ? ' · ' + fmt(d.delivered_at) : '') : '';
+      $('timeline').innerHTML = '';
+      d.timeline.forEach(function (e) { var li = document.createElement('li'); li.textContent = e.text; var tm = document.createElement('time'); tm.textContent = fmt(e.at); li.appendChild(tm); $('timeline').appendChild(li); });
+      $('cancelBtn').hidden = !d.can_cancel;
+      if (['delivered', 'cancelled'].indexOf(d.status) === -1) setTimeout(load, 10000);
+    }).catch(function () { $('err').textContent = 'Couldn’t load. Retrying…'; setTimeout(load, 15000); });
+  }
+  $('cancelBtn').addEventListener('click', function () {
+    if (!confirm('Cancel this delivery? You’ll get a full refund.')) return;
+    fetch(API + '/track/' + encodeURIComponent(id) + '/cancel?t=' + encodeURIComponent(t), { method: 'POST' }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); })
+      .then(function (j) { if (!j._ok) { $('err').textContent = j.error; return; } $('err').textContent = ''; load(); });
+  });
+  load();
+})();
+</script>
+</body>
+</html>
